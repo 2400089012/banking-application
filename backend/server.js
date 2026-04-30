@@ -50,15 +50,19 @@ app.post('/api/auth/register', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const role = username.toLowerCase() === 'admin' ? 'admin' : 'user';
+        const status = role === 'admin' ? 'ACTIVE' : 'PENDING'; // Admins auto-active
+        const account_no = Math.floor(1000000000 + Math.random() * 9000000000).toString(); // 10-digit number
         
-        db.run(`INSERT INTO users (username, password_hash, balance, role) VALUES (?, ?, 0, ?)`, [username, hashedPassword, role], function(err) {
+        db.run(`INSERT INTO users (username, password_hash, balance, role, status, account_no) VALUES (?, ?, 0, ?, ?, ?)`, [username, hashedPassword, role, status, account_no], function(err) {
             if (err) {
+                console.error("DB Error in register:", err);
                 if (err.message.includes('UNIQUE constraint failed')) {
-                    return res.status(400).json({ error: 'Username already exists' });
+                    if (err.message.includes('username')) return res.status(400).json({ error: 'Username already exists' });
+                    if (err.message.includes('account_no')) return res.status(400).json({ error: 'Account number generation failed, please try again' });
                 }
                 return res.status(500).json({ error: 'Database error' });
             }
-            res.status(201).json({ message: 'User created successfully' });
+            res.status(201).json({ message: 'User created successfully', account_no, status });
         });
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
@@ -71,6 +75,7 @@ app.post('/api/auth/login', (req, res) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
+        if (user.status === 'PENDING') return res.status(403).json({ error: 'Your account is pending admin approval.' });
         if (user.status === 'BLOCKED') return res.status(403).json({ error: 'Your account has been blocked by admin' });
         if (user.status === 'DELETED') return res.status(403).json({ error: 'Your account has been deleted by admin' });
 
@@ -91,7 +96,7 @@ app.post('/api/auth/login', (req, res) => {
 
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
         logNotification(user.id, `Successful login from new session.`, 'security');
-        res.json({ token, user: { id: user.id, username: user.username, balance: user.balance, role: user.role, theme: user.theme, monthly_limit: user.monthly_limit } });
+        res.json({ token, user: { id: user.id, username: user.username, balance: user.balance, role: user.role, theme: user.theme, monthly_limit: user.monthly_limit, account_no: user.account_no } });
     });
 });
 
@@ -142,7 +147,7 @@ app.post('/api/auth/change-password', async (req, res) => {
 // --- ADMIN ROUTES ---
 
 app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
-    db.all(`SELECT id, username, balance, role, status, created_at FROM users`, [], (err, rows) => {
+    db.all(`SELECT id, username, balance, role, status, account_no, created_at FROM users`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: 'Error fetching users' });
         res.json({ users: rows });
     });
@@ -151,10 +156,23 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
 app.put('/api/admin/users/:id/block', authenticateToken, requireAdmin, (req, res) => {
     db.get(`SELECT status FROM users WHERE id = ?`, [req.params.id], (err, user) => {
         if (err || !user) return res.status(404).json({ error: 'User not found' });
+        if (user.status === 'PENDING') return res.status(400).json({ error: 'Cannot block a pending user' });
         const newStatus = user.status === 'BLOCKED' ? 'ACTIVE' : 'BLOCKED';
         db.run(`UPDATE users SET status = ? WHERE id = ?`, [newStatus, req.params.id], (err) => {
             if (err) return res.status(500).json({ error: 'Database error' });
             res.json({ message: `User status changed to ${newStatus}`, status: newStatus });
+        });
+    });
+});
+
+app.put('/api/admin/users/:id/approve', authenticateToken, requireAdmin, (req, res) => {
+    db.get(`SELECT status FROM users WHERE id = ?`, [req.params.id], (err, user) => {
+        if (err || !user) return res.status(404).json({ error: 'User not found' });
+        if (user.status !== 'PENDING') return res.status(400).json({ error: 'User is not in pending state' });
+        
+        db.run(`UPDATE users SET status = 'ACTIVE' WHERE id = ?`, [req.params.id], (err) => {
+            if (err) return res.status(500).json({ error: 'Database error' });
+            res.json({ message: `User approved successfully`, status: 'ACTIVE' });
         });
     });
 });
@@ -194,21 +212,22 @@ app.post('/api/account/deposit', authenticateToken, (req, res) => {
     if (!amount || amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
     db.serialize(() => {
+        const txnId = 'TXN' + Date.now() + Math.floor(Math.random() * 1000);
         db.run('BEGIN TRANSACTION');
         db.run(`UPDATE users SET balance = balance + ? WHERE id = ?`, [amount, req.user.id]);
-        db.run(`INSERT INTO transactions (user_id, type, amount, category, description) VALUES (?, 'DEPOSIT', ?, ?, 'Deposit to account')`, [req.user.id, amount, category]);
+        db.run(`INSERT INTO transactions (user_id, type, amount, category, description, transaction_id) VALUES (?, 'DEPOSIT', ?, ?, 'Deposit to account', ?)`, [req.user.id, amount, category, txnId]);
         
         if (amount > 50000) {
             logSuspicious(req.user.id, 'LARGE_DEPOSIT', `User deposited ₹${amount}`);
         }
-        logNotification(req.user.id, `₹${amount} deposited to your account.`, 'transaction');
+        logNotification(req.user.id, `₹${amount} deposited to your account. Ref: ${txnId}`, 'transaction');
 
         db.run('COMMIT', (err) => {
             if (err) {
                 db.run('ROLLBACK');
                 return res.status(500).json({ error: 'Transaction failed' });
             }
-            res.json({ message: 'Deposit successful' });
+            res.json({ message: 'Deposit successful', transaction_id: txnId });
         });
     });
 });
@@ -234,21 +253,22 @@ app.post('/api/account/withdraw', authenticateToken, (req, res) => {
             }
 
             db.serialize(() => {
+                const txnId = 'TXN' + Date.now() + Math.floor(Math.random() * 1000);
                 db.run('BEGIN TRANSACTION');
                 db.run(`UPDATE users SET balance = balance - ? WHERE id = ?`, [amount, req.user.id]);
-                db.run(`INSERT INTO transactions (user_id, type, amount, category, description) VALUES (?, 'WITHDRAW', ?, ?, 'Withdrawal from account')`, [req.user.id, amount, category]);
+                db.run(`INSERT INTO transactions (user_id, type, amount, category, description, transaction_id) VALUES (?, 'WITHDRAW', ?, ?, 'Withdrawal from account', ?)`, [req.user.id, amount, category, txnId]);
                 
                 if (amount > 50000) {
                     logSuspicious(req.user.id, 'LARGE_WITHDRAWAL', `User withdrew ₹${amount}`);
                 }
-                logNotification(req.user.id, `₹${amount} withdrawn from your account.`, 'transaction');
+                logNotification(req.user.id, `₹${amount} withdrawn from your account. Ref: ${txnId}`, 'transaction');
 
                 db.run('COMMIT', (err) => {
                     if (err) {
                         db.run('ROLLBACK');
                         return res.status(500).json({ error: 'Transaction failed' });
                     }
-                    res.json({ message: 'Withdrawal successful' });
+                    res.json({ message: 'Withdrawal successful', transaction_id: txnId });
                 });
             });
         });
@@ -280,27 +300,28 @@ app.post('/api/account/transfer', authenticateToken, (req, res) => {
                 }
 
                 db.serialize(() => {
+                    const txnId = 'TXN' + Date.now() + Math.floor(Math.random() * 1000);
                     db.run('BEGIN TRANSACTION');
                     db.run(`UPDATE users SET balance = balance - ? WHERE id = ?`, [amount, req.user.id]);
                     db.run(`UPDATE users SET balance = balance + ? WHERE id = ?`, [amount, toUser.id]);
                     
-                    db.run(`INSERT INTO transactions (user_id, type, amount, category, description, related_user_id) VALUES (?, 'TRANSFER_OUT', ?, ?, ?, ?)`, 
-                        [req.user.id, amount, category, `Transfer to ${toUsername}`, toUser.id]);
-                    db.run(`INSERT INTO transactions (user_id, type, amount, category, description, related_user_id) VALUES (?, 'TRANSFER_IN', ?, ?, ?, ?)`, 
-                        [toUser.id, amount, category, `Transfer from ${req.user.username}`, req.user.id]);
+                    db.run(`INSERT INTO transactions (user_id, type, amount, category, description, related_user_id, transaction_id) VALUES (?, 'TRANSFER_OUT', ?, ?, ?, ?, ?)`, 
+                        [req.user.id, amount, category, `Transfer to ${toUsername}`, toUser.id, txnId]);
+                    db.run(`INSERT INTO transactions (user_id, type, amount, category, description, related_user_id, transaction_id) VALUES (?, 'TRANSFER_IN', ?, ?, ?, ?, ?)`, 
+                        [toUser.id, amount, category, `Transfer from ${req.user.username}`, req.user.id, txnId]);
                     
                     if (amount > 50000) {
                         logSuspicious(req.user.id, 'LARGE_TRANSFER', `User transferred ₹${amount} to ${toUsername}`);
                     }
-                    logNotification(req.user.id, `₹${amount} transferred to ${toUsername}.`, 'transaction');
-                    logNotification(toUser.id, `You received ₹${amount} from ${req.user.username}.`, 'transaction');
+                    logNotification(req.user.id, `₹${amount} transferred to ${toUsername}. Ref: ${txnId}`, 'transaction');
+                    logNotification(toUser.id, `You received ₹${amount} from ${req.user.username}. Ref: ${txnId}`, 'transaction');
 
                     db.run('COMMIT', (err) => {
                         if (err) {
                             db.run('ROLLBACK');
                             return res.status(500).json({ error: 'Transaction failed' });
                         }
-                        res.json({ message: 'Transfer successful' });
+                        res.json({ message: 'Transfer successful', transaction_id: txnId });
                     });
                 });
             });

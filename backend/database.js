@@ -19,6 +19,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 reset_otp TEXT,
                 monthly_limit REAL DEFAULT 0,
                 theme TEXT DEFAULT 'dark',
+                account_no TEXT UNIQUE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`, () => {
                 db.run(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'`, () => {});
@@ -26,6 +27,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 db.run(`ALTER TABLE users ADD COLUMN reset_otp TEXT`, () => {});
                 db.run(`ALTER TABLE users ADD COLUMN monthly_limit REAL DEFAULT 0`, () => {});
                 db.run(`ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'dark'`, () => {});
+                db.run(`ALTER TABLE users ADD COLUMN account_no TEXT`, () => {
+                    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_account_no ON users(account_no)`, () => {});
+                });
             });
 
             db.run(`CREATE TABLE IF NOT EXISTS transactions (
@@ -36,11 +40,15 @@ const db = new sqlite3.Database(dbPath, (err) => {
                 category TEXT DEFAULT 'General',
                 description TEXT,
                 related_user_id INTEGER,
+                transaction_id TEXT UNIQUE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id),
                 FOREIGN KEY (related_user_id) REFERENCES users (id)
             )`, () => {
                 db.run(`ALTER TABLE transactions ADD COLUMN category TEXT DEFAULT 'General'`, () => {});
+                db.run(`ALTER TABLE transactions ADD COLUMN transaction_id TEXT`, () => {
+                    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_transaction_id ON transactions(transaction_id)`, () => {});
+                });
             });
 
             db.run(`CREATE TABLE IF NOT EXISTS notifications (

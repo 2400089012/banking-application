@@ -71,7 +71,7 @@ export default function Login() {
                 setView('login');
                 setUsername('');
                 setPassword('');
-                alert("Registration successful! Please login.");
+                alert("Registration successful! Please wait for admin approval before logging in.");
             }
         } catch (err) {
             setError(err.response?.data?.error || 'An error occurred');

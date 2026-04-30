@@ -49,7 +49,16 @@ export default function AdminDashboard() {
             await api.put(`/admin/users/${userId}/block`);
             fetchData();
         } catch (err) {
-            alert("Failed to change user status");
+            alert(err.response?.data?.error || "Failed to change user status");
+        }
+    };
+
+    const approveUser = async (userId) => {
+        try {
+            await api.put(`/admin/users/${userId}/approve`);
+            fetchData();
+        } catch (err) {
+            alert(err.response?.data?.error || "Failed to approve user");
         }
     };
 
@@ -112,6 +121,7 @@ export default function AdminDashboard() {
                             <thead>
                                 <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-color)' }}>
                                     <th style={{ padding: '1rem' }}>Username</th>
+                                    <th style={{ padding: '1rem' }}>Account No</th>
                                     <th style={{ padding: '1rem' }}>Status</th>
                                     <th style={{ padding: '1rem' }}>Balance</th>
                                     <th style={{ padding: '1rem' }}>Joined</th>
@@ -122,8 +132,13 @@ export default function AdminDashboard() {
                                 {users.filter(u => u.role !== 'admin').map(u => (
                                     <tr key={u.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', opacity: u.status === 'DELETED' ? 0.5 : 1 }}>
                                         <td style={{ padding: '1rem', fontWeight: 600 }}>{u.username}</td>
+                                        <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '13px' }}>{u.account_no || 'N/A'}</td>
                                         <td style={{ padding: '1rem' }}>
-                                            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', background: u.status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: u.status === 'ACTIVE' ? 'var(--success)' : 'var(--danger)' }}>
+                                            <span style={{ 
+                                                padding: '4px 8px', borderRadius: '4px', fontSize: '12px', 
+                                                background: u.status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.1)' : u.status === 'PENDING' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                                                color: u.status === 'ACTIVE' ? 'var(--success)' : u.status === 'PENDING' ? 'var(--warning)' : 'var(--danger)' 
+                                            }}>
                                                 {u.status}
                                             </span>
                                         </td>
@@ -131,10 +146,13 @@ export default function AdminDashboard() {
                                         <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '13px' }}>{new Date(u.created_at).toLocaleDateString()}</td>
                                         <td style={{ padding: '1rem', textAlign: 'right', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                             <button onClick={() => fetchUserTransactions(u.id)} className="btn btn-outline" style={{ padding: '5px' }} title="Transactions"><FileText size={16} /></button>
-                                            {u.status !== 'DELETED' && (
+                                            {u.status === 'PENDING' && (
+                                                <button onClick={() => approveUser(u.id)} className="btn btn-outline" style={{ padding: '5px', color: 'var(--success)' }} title="Approve User"><CheckCircle size={16} /></button>
+                                            )}
+                                            {u.status !== 'DELETED' && u.status !== 'PENDING' && (
                                                 <>
-                                                    <button onClick={() => toggleBlockUser(u.id)} className="btn btn-outline" style={{ padding: '5px', color: u.status === 'BLOCKED' ? 'var(--success)' : 'var(--danger)' }}>{u.status === 'BLOCKED' ? <CheckCircle size={16} /> : <Ban size={16} />}</button>
-                                                    <button onClick={() => deleteUser(u.id)} className="btn btn-outline" style={{ padding: '5px', color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                                                    <button onClick={() => toggleBlockUser(u.id)} className="btn btn-outline" style={{ padding: '5px', color: u.status === 'BLOCKED' ? 'var(--success)' : 'var(--danger)' }} title={u.status === 'BLOCKED' ? 'Unblock' : 'Block'}>{u.status === 'BLOCKED' ? <CheckCircle size={16} /> : <Ban size={16} />}</button>
+                                                    <button onClick={() => deleteUser(u.id)} className="btn btn-outline" style={{ padding: '5px', color: 'var(--danger)' }} title="Delete"><Trash2 size={16} /></button>
                                                 </>
                                             )}
                                         </td>
@@ -183,7 +201,7 @@ export default function AdminDashboard() {
                             <div key={t.id} className="transaction-item">
                                 <div>
                                     <p style={{ fontWeight: 600 }}>{t.description}</p>
-                                    <p className="text-muted" style={{ fontSize: '12px' }}>{formatDate(t.created_at)} • {t.category}</p>
+                                    <p className="text-muted" style={{ fontSize: '12px' }}>{formatDate(t.created_at)} • {t.category} • Ref: {t.transaction_id || 'N/A'}</p>
                                 </div>
                                 <div style={{ fontWeight: 700, color: t.type.includes('OUT') || t.type === 'WITHDRAW' ? 'var(--danger)' : 'var(--success)' }}>
                                     {t.type.includes('OUT') || t.type === 'WITHDRAW' ? '-' : '+'}{formatCurrency(t.amount)}

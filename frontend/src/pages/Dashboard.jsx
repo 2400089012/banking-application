@@ -107,20 +107,22 @@ export default function Dashboard() {
         doc.text('Professional BANK OF INDIA - Mini Statement', 14, 22);
         doc.setFontSize(11);
         doc.text(`Account Holder: ${user?.username || 'N/A'}`, 14, 30);
-        doc.text(`Current Balance: ₹${user?.balance || 0}`, 14, 35);
-        doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 40);
+        doc.text(`Account No: ${user?.account_no || 'N/A'}`, 14, 35);
+        doc.text(`Current Balance: ₹${user?.balance || 0}`, 14, 40);
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 45);
 
         const tableData = transactions.map(t => [
             new Date(t.created_at).toLocaleDateString(),
             t.description,
             t.category,
             t.type,
-            `₹${t.amount}`
+            `₹${t.amount}`,
+            t.transaction_id || 'N/A'
         ]);
 
         doc.autoTable({
-            startY: 50,
-            head: [['Date', 'Description', 'Category', 'Type', 'Amount']],
+            startY: 55,
+            head: [['Date', 'Description', 'Category', 'Type', 'Amount', 'Reference']],
             body: tableData,
         });
 
@@ -183,6 +185,7 @@ export default function Dashboard() {
                         <div className="glass-panel balance-card">
                             <p className="text-muted" style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>Total Balance</p>
                             <h1 className="balance-amount text-gradient">{formatCurrency(user?.balance || 0)}</h1>
+                            <p className="text-muted" style={{ fontSize: '0.9rem', marginBottom: '1rem' }}>Account No: <strong className="text-main">{user?.account_no}</strong></p>
                             <div className="quick-actions">
                                 <button className="btn btn-success" onClick={() => setAction('deposit')}><PlusCircle size={18} /> Deposit</button>
                                 <button className="btn btn-danger" onClick={() => setAction('withdraw')}><MinusCircle size={18} /> Withdraw</button>
@@ -349,7 +352,7 @@ export default function Dashboard() {
                                             <div>
                                                 <p style={{ fontWeight: 600 }}>{t.description}</p>
                                                 <p className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                                    {formatDate(t.created_at)} • <span style={{ color: 'var(--primary)' }}>{t.category}</span>
+                                                    {formatDate(t.created_at)} • <span style={{ color: 'var(--primary)' }}>{t.category}</span> • Ref: <span className="text-main">{t.transaction_id || 'N/A'}</span>
                                                 </p>
                                             </div>
                                         </div>

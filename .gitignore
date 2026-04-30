@@ -16,3 +16,12 @@ frontend/.vite/
 # OS
 .DS_Store
 Thumbs.db
+
+# Java / Maven
+spring-backend/target/
+spring-backend/.mvn/
+spring-backend/*.jar
+spring-backend/.factorypath
+spring-backend/.project
+spring-backend/.settings/
+spring-backend/.classpath
