@@ -11,6 +11,8 @@ services:
           property: jdbcConnectionString
       - key: SPRING_DATASOURCE_DRIVER
         value: org.postgresql.Driver
+      - key: HIBERNATE_DIALECT
+        value: org.hibernate.dialect.PostgreSQLDialect
       - key: JWT_SECRET
         generateValue: true
 
