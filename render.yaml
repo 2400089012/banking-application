@@ -8,11 +8,9 @@ services:
       - key: SPRING_DATASOURCE_URL
         fromDatabase:
           name: banking-db
-          property: connectionString
+          property: jdbcConnectionString
       - key: SPRING_DATASOURCE_DRIVER
         value: org.postgresql.Driver
-      - key: SPRING_JPA_DIALECT
-        value: org.hibernate.dialect.PostgreSQLDialect
       - key: JWT_SECRET
         generateValue: true
 
