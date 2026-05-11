@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: banking-system
+    env: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:sqlite:/data/banking.db
+    disk:
+      name: banking-data
+      mountPath: /data
+      sizeGB: 1
