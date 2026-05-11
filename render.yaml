@@ -6,8 +6,16 @@ services:
     healthCheckPath: /
     envVars:
       - key: SPRING_DATASOURCE_URL
-        value: jdbc:sqlite:/data/banking.db
-    disk:
-      name: banking-data
-      mountPath: /data
-      sizeGB: 1
+        fromDatabase:
+          name: banking-db
+          property: connectionString
+      - key: SPRING_DATASOURCE_DRIVER
+        value: org.postgresql.Driver
+      - key: SPRING_JPA_DIALECT
+        value: org.hibernate.dialect.PostgreSQLDialect
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: banking-db
+    plan: free
