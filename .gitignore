@@ -1,27 +1,30 @@
-# Node
-node_modules/
+# Maven
+target/
+*.jar
+*.war
+*.ear
+*.db
+.mvn/wrapper/maven-wrapper.jar
+
+# Frontend
+src/main/frontend/node/
+src/main/frontend/node_modules/
+src/main/frontend/dist/
+src/main/frontend/.vite/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .env
 
-# Database
-backend/*.sqlite
-backend/*.sqlite-journal
-
-# Frontend
-frontend/dist/
-frontend/.vite/
+# IDEs
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Java / Maven
-spring-backend/target/
-spring-backend/.mvn/
-spring-backend/*.jar
-spring-backend/.factorypath
-spring-backend/.project
-spring-backend/.settings/
-spring-backend/.classpath
