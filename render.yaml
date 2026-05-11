@@ -6,7 +6,9 @@ services:
     healthCheckPath: /
     envVars:
       - key: SPRING_DATASOURCE_URL
-        value: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+        fromDatabase:
+          name: banking-db
+          property: jdbcConnectionString
       - key: SPRING_DATASOURCE_USERNAME
         fromDatabase:
           name: banking-db
@@ -15,19 +17,7 @@ services:
         fromDatabase:
           name: banking-db
           property: password
-      - key: DB_HOST
-        fromDatabase:
-          name: banking-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: banking-db
-          property: port
-      - key: DB_NAME
-        fromDatabase:
-          name: banking-db
-          property: database
-      - key: SPRING_DATASOURCE_DRIVER
+      - key: DB_DRIVER
         value: org.postgresql.Driver
       - key: HIBERNATE_DIALECT
         value: org.hibernate.dialect.PostgreSQLDialect
